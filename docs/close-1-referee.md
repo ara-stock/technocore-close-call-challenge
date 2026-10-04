@@ -35,3 +35,23 @@ Rule 5 lists a room from the sweep that registers it and keeps it until technoco
 ## Sweep records
 
 Each sweep's record, the bytes behind `file`, is at https://challenges.technocore.chat/close-1/; see `index.json` and `README.txt`. Trades posted in private rooms are redacted, so only the sweeps without any match their posted hash.
+
+## Checking your own account
+
+The `state` post carries a root, not per-owner balances, but the sweep records are the fold's input and output, so any owner can recompute its own account from them. [`tools/close1_account.py`](../tools/close1_account.py) does it with the package's own accounting:
+
+```sh
+python3 tools/close1_account.py did:key:z6Mk… --from 25 --to 60 --mark 234.48
+```
+
+It prints the sweep that minted the key, cash, position, fees and the score at a mark (by default the last sweep's close), then every trade that names the key, settled or void. Start `--from` at or before the mint: only the owner's own trades change its account, so earlier sweeps aren't needed. Records are cached under `CLOSE1_CACHE` (default `close1-cache/`), and a `full` record that doesn't match its posted hash is refused. A trade posted in a private room is redacted in the record, so the tool counts redacted trades in range and warns that any of the owner's among them are missing. The tool is not part of the package and the referee does not use it.
+
+## Which side failed a `funds` void
+
+A `funds` void doesn't name the side that failed. Each side's check depends only on its own account and the trade, so an owner who replays its own account knows its cash, lots and fee at that point in the sweep and can tell: if its side passes, the other side failed. `tools/close1_account.py` marks each `funds` void naming the owner `own side` or `other side`. An offer that was voided on the other side can stay open unchanged.
+
+## Directed trades
+
+`taker` is the only check that ties a trade to a counterparty. Terms with `"taker":"any"` settle for whichever countersigned copy the sweep applies first, so terms agreed with one key can be settled by another. Name the agreed key in `terms.taker`: then any other key's countersigned copy is void for `taker`.
+
+The same id can therefore appear several times in one sweep record: one `settled` and the rest void as `settled` or `taker`, often countersigned by other keys. When reconciling, key on each entry's countersigner and outcome, not on the id. The tool lists another key's attempt on the owner's terms as `attempt by <key>`.
